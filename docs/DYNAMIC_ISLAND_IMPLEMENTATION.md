@@ -51,9 +51,12 @@ The pill is rendered by SystemUI so it is present above ordinary apps and is not
 
 ## SystemUI integration research
 - The LineageOS 24.0 frameworks/base branch contains the SystemUI module under `packages/SystemUI`.
-- Search results identify the status-bar lifecycle/hosting path around `CentralSurfacesImpl`, the per-display status bar window controller under `statusbar/window`, and existing media state in `NotificationMediaManager` / media pipeline.
-- These are candidate integration points, not a finished patch. A proper implementation must inspect the exact branch source and its Dagger/lifecycle wiring before modifying it.
-- The feature should be a SystemUI-owned controller/view, integrated through the existing status-bar lifecycle and media/notification state. It must not be a third-party overlay app, AccessibilityService, notification-listener app, or launcher widget.
+- Inspected the matching branch source for `CentralSurfacesImpl`, `StatusBarWindowControllerImpl`, `StatusBarWindowView`, and `StatusBarWindowViewInflater`. The status-bar window is an existing SystemUI-owned root view; the inflater constructs it from `R.layout.super_status_bar`. This is the most appropriate visual host to evaluate before adding a separate window.
+- Inspected `NotificationMediaManager`: it already tracks the current media notification/controller, metadata, and playback-state changes, and exposes media listeners. Reusing this pipeline avoids creating a duplicate media-session tracker.
+- Inspected SystemUI resource configuration: `config_systemUIServiceComponentsPerUser` is a per-user startable list, while the global service list is assembled through SystemUI's startup/Dagger wiring. A new controller must be registered through the correct global startup binding, not merely added to an unrelated resource array.
+- The planned architecture is a dedicated SystemUI island state/controller plus a compact view hosted by the existing status-bar window. It should consume existing media state and platform notification/battery/call/timer signals, with event arbitration and lock-screen privacy handled centrally.
+- These inspections identify the correct integration surfaces but do not constitute a finished patch. Exact Dagger registration, layout insertion, touch handling, cutout geometry, and lifecycle cleanup still need implementation and compile/test validation.
+- The feature must not be a third-party overlay app, AccessibilityService, notification-listener app, or launcher widget.
 
 ## Required verification before flashing
 1. Resolve the XT2363-8 product identity/fingerprint mismatch and pin matching fogos device tree, common tree, kernel, vendor blobs and firmware revisions.
@@ -69,7 +72,7 @@ A full Android ROM build is much larger than an ordinary Android app build. A ph
 - Planning and compatibility research updated.
 - Exact user-reported model XT2363-8 is listed by the official LineageOS wiki for moto g45 5G.
 - Official LineageOS 24.0 fogos device tree and its declared common/NFC dependencies identified.
-- Potential SystemUI lifecycle/media integration points located; no patch has been applied to frameworks/base.
+- SystemUI host view, status-bar window controller, media pipeline and startup configuration inspected; no patch has been applied to frameworks/base.
 - XT2363-8 and XT2363-9 SKU property files inspected: both explicitly identify the device as moto g45 5G.
 - Product model string mismatch in the device tree is flagged for maintainer/fingerprint verification.
 - Matching proprietary vendor blobs, kernel/common revisions and stock firmware baseline still need verification.
