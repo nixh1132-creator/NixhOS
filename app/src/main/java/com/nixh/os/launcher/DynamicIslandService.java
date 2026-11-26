@@ -5,26 +5,46 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.BatteryManager;
 import android.os.Build;
 import android.os.IBinder;
 import android.view.Gravity;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.animation.DecelerateInterpolator;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class DynamicIslandService extends Service {
     private static final String CHANNEL_ID = "nixh_island_status";
     private static final int NOTIFICATION_ID = 4101;
     private WindowManager wm;
-    private TextView pill;
+    private LinearLayout island;
+    private TextView title, subtitle, battery;
     private boolean expanded = false;
     private int accent;
+    private int batteryLevel = -1;
+    private boolean charging = false;
+    private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (intent == null) return;
+            int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+            int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
+            if (level >= 0 && scale > 0) batteryLevel = Math.round(level * 100f / scale);
+            int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+            charging = status == BatteryManager.BATTERY_STATUS_CHARGING
+                    || status == BatteryManager.BATTERY_STATUS_FULL;
+            updateContent();
+        }
+    };
 
     @Override public void onCreate() {
         super.onCreate();
@@ -37,51 +57,95 @@ public class DynamicIslandService extends Service {
             stopSelf();
             return;
         }
-        pill = new TextView(this);
-        pill.setText("✦   NIXH");
-        pill.setTextColor(Color.WHITE);
-        pill.setTextSize(13);
-        pill.setGravity(Gravity.CENTER);
-        pill.setPadding(dp(24), dp(11), dp(24), dp(11));
-        pill.setBackground(makeBackground());
-        pill.setElevation(dp(12));
-        pill.setOnClickListener(v -> toggle());
-        pill.setOnTouchListener(new View.OnTouchListener() {
-            float downX, downY;
-            int startX, startY;
-            boolean moved;
-            @Override public boolean onTouch(View v, MotionEvent e) {
-                WindowManager.LayoutParams p = (WindowManager.LayoutParams) v.getLayoutParams();
-                if (e.getAction() == MotionEvent.ACTION_DOWN) {
-                    downX=e.getRawX(); downY=e.getRawY(); startX=p.x; startY=p.y; moved=false;
-                    return true;
-                }
-                if (e.getAction() == MotionEvent.ACTION_MOVE) {
-                    float dx=e.getRawX()-downX, dy=e.getRawY()-downY;
-                    if (Math.abs(dx)>5 || Math.abs(dy)>5) moved=true;
-                    p.x=startX+(int)dx; p.y=startY+(int)dy;
-                    wm.updateViewLayout(v,p);
-                    return true;
-                }
-                if (e.getAction() == MotionEvent.ACTION_UP) {
-                    if (!moved) v.performClick();
-                    return true;
-                }
-                return true;
-            }
-        });
+        buildIsland();
+        IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+        Intent sticky = registerReceiver(batteryReceiver, filter);
+        if (sticky != null) batteryReceiver.onReceive(this, sticky);
         int type = Build.VERSION.SDK_INT >= 26
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 : WindowManager.LayoutParams.TYPE_PHONE;
         WindowManager.LayoutParams p = new WindowManager.LayoutParams(
-                dp(148), dp(42), type,
+                dp(132), dp(36), type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
-        p.gravity=Gravity.TOP|Gravity.CENTER_HORIZONTAL;
-        p.y=dp(8);
-        try { wm.addView(pill,p); }
+        p.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        // The pill hugs the centred punch-hole/camera area at the top edge.
+        p.y = dp(3);
+        try { wm.addView(island, p); }
         catch (RuntimeException ex) { stopSelf(); }
+    }
+
+    private void buildIsland() {
+        island = new LinearLayout(this);
+        island.setOrientation(LinearLayout.VERTICAL);
+        island.setGravity(Gravity.CENTER);
+        island.setPadding(dp(14), dp(7), dp(14), dp(7));
+        island.setBackground(background(false));
+        island.setElevation(dp(16));
+
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        TextView dot = text("●", 9, accent, true);
+        top.addView(dot);
+        title = text("NIXH ISLAND", 11, Color.WHITE, true);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2);
+        tp.leftMargin = dp(7);
+        top.addView(title, tp);
+        island.addView(top);
+
+        subtitle = text("Ready for your day", 10, Color.rgb(170, 178, 196), false);
+        battery = text("", 10, Color.WHITE, true);
+        island.addView(subtitle);
+        island.addView(battery);
+        subtitle.setVisibility(View.GONE);
+        battery.setVisibility(View.GONE);
+
+        island.setOnClickListener(v -> toggle());
+    }
+
+    private TextView text(String value, int size, int color, boolean bold) {
+        TextView t = new TextView(this);
+        t.setText(value);
+        t.setTextSize(size);
+        t.setTextColor(color);
+        if (bold) t.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        return t;
+    }
+
+    private GradientDrawable background(boolean open) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(Color.rgb(3, 4, 8));
+        d.setCornerRadius(dp(open ? 30 : 24));
+        d.setStroke(dp(1), Color.argb(95, 150, 165, 205));
+        return d;
+    }
+
+    private void updateContent() {
+        if (battery == null) return;
+        if (batteryLevel >= 0) {
+            battery.setText((charging ? "⚡ Charging  ·  " : "Battery  ·  ") + batteryLevel + "%");
+        }
+        if (expanded) {
+            subtitle.setText(charging ? "Your phone is charging" : "NixhOS is active");
+        }
+    }
+
+    private void toggle() {
+        expanded = !expanded;
+        subtitle.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        battery.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        title.setText(expanded ? "NIXH  •  YOUR SPACE" : "NIXH ISLAND");
+        if (expanded) updateContent();
+        island.setPadding(dp(16), dp(expanded ? 13 : 7), dp(16), dp(expanded ? 13 : 7));
+        WindowManager.LayoutParams p = (WindowManager.LayoutParams) island.getLayoutParams();
+        p.width = dp(expanded ? 248 : 132);
+        p.height = dp(expanded ? 104 : 36);
+        wm.updateViewLayout(island, p);
+        island.setBackground(background(expanded));
+        island.animate().scaleX(1.035f).scaleY(1.035f).setDuration(130)
+                .setInterpolator(new DecelerateInterpolator())
+                .withEndAction(() -> island.animate().scaleX(1f).scaleY(1f).setDuration(150).start()).start();
     }
 
     private void createNotificationChannel() {
@@ -102,34 +166,17 @@ public class DynamicIslandService extends Service {
                 ? new Notification.Builder(this, CHANNEL_ID) : new Notification.Builder(this);
         return b.setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle("Nixh Island is active")
-                .setContentText("The island can appear over your apps")
+                .setContentText("Tap the island for live battery status")
                 .setContentIntent(pi).setOngoing(true).build();
     }
 
-    private GradientDrawable makeBackground() {
-        GradientDrawable d=new GradientDrawable();
-        d.setColor(Color.rgb(8,10,16));
-        d.setCornerRadius(dp(28));
-        d.setStroke(dp(1),accent);
-        return d;
-    }
     private int dp(float n) {
-        return (int)(n*getResources().getDisplayMetrics().density+.5f);
+        return (int)(n * getResources().getDisplayMetrics().density + .5f);
     }
-    private void toggle() {
-        expanded=!expanded;
-        pill.setText(expanded ? "NIXH ISLAND  •  READY\n♫ Music     ◉ Alerts     ◷ Calls" : "✦   NIXH");
-        pill.setTextSize(expanded?12:13);
-        pill.setPadding(dp(22),dp(expanded?17:11),dp(22),dp(expanded?17:11));
-        WindowManager.LayoutParams p=(WindowManager.LayoutParams)pill.getLayoutParams();
-        p.width=dp(expanded?250:148); p.height=dp(expanded?76:42);
-        wm.updateViewLayout(pill,p);
-        pill.animate().scaleX(1.04f).scaleY(1.04f).setDuration(120)
-                .setInterpolator(new DecelerateInterpolator())
-                .withEndAction(()->pill.animate().scaleX(1f).scaleY(1f).setDuration(130).start()).start();
-    }
+
     @Override public void onDestroy() {
-        if (pill!=null && wm!=null) try { wm.removeView(pill); } catch(Exception ignored) {}
+        try { unregisterReceiver(batteryReceiver); } catch (Exception ignored) {}
+        if (island != null && wm != null) try { wm.removeView(island); } catch (Exception ignored) {}
         super.onDestroy();
     }
     @Override public IBinder onBind(Intent intent) { return null; }
