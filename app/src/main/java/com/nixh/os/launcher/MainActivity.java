@@ -94,6 +94,13 @@ public class MainActivity extends Activity {
         island.addView(islandText,new LinearLayout.LayoutParams(0,dp(24),1));
         island.addView(label("•••",16,muted,true));
         content.addView(island,new LinearLayout.LayoutParams(-1,-2));
+        TextView notificationAccess=label("Enable music & notification access  →",12,accent,true);
+        notificationAccess.setPadding(dp(4),dp(12),dp(4),dp(4));
+        content.addView(notificationAccess);
+        notificationAccess.setOnClickListener(v->{
+            try { startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")); }
+            catch(Exception e) { Toast.makeText(this,"Open Settings → Notifications → Device & app notifications",Toast.LENGTH_LONG).show(); }
+        });
         island.setOnClickListener(v -> {
             if (android.provider.Settings.canDrawOverlays(this)) {
                 startService(new Intent(this, DynamicIslandService.class));
