@@ -33,6 +33,27 @@ public class DynamicIslandService extends Service {
     private int accent;
     private int batteryLevel = -1;
     private boolean charging = false;
+    private final BroadcastReceiver eventReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (intent == null || title == null) return;
+            String eventTitle = intent.getStringExtra(IslandNotificationListener.EXTRA_TITLE);
+            String eventText = intent.getStringExtra(IslandNotificationListener.EXTRA_TEXT);
+            String kind = intent.getStringExtra(IslandNotificationListener.EXTRA_KIND);
+            title.setText("music".equals(kind) ? "♫  NOW PLAYING" : "●  NOTIFICATION");
+            subtitle.setText(eventTitle == null ? "New notification" : eventTitle);
+            battery.setText(eventText == null ? "" : eventText);
+            subtitle.setVisibility(View.VISIBLE);
+            battery.setVisibility(eventText == null || eventText.isEmpty() ? View.GONE : View.VISIBLE);
+            if (!expanded) {
+                expanded = true;
+                island.setPadding(dp(16), dp(13), dp(16), dp(13));
+                WindowManager.LayoutParams lp = (WindowManager.LayoutParams) island.getLayoutParams();
+                lp.width = dp(248); lp.height = dp(104);
+                wm.updateViewLayout(island, lp);
+                island.setBackground(background(true));
+            }
+        }
+    };
     private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             if (intent == null) return;
@@ -61,6 +82,9 @@ public class DynamicIslandService extends Service {
         IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
         Intent sticky = registerReceiver(batteryReceiver, filter);
         if (sticky != null) batteryReceiver.onReceive(this, sticky);
+        IntentFilter eventFilter = new IntentFilter(IslandNotificationListener.ACTION_ISLAND_EVENT);
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(eventReceiver, eventFilter, Context.RECEIVER_NOT_EXPORTED);
+        else registerReceiver(eventReceiver, eventFilter);
         int type = Build.VERSION.SDK_INT >= 26
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 : WindowManager.LayoutParams.TYPE_PHONE;
@@ -176,6 +200,7 @@ public class DynamicIslandService extends Service {
 
     @Override public void onDestroy() {
         try { unregisterReceiver(batteryReceiver); } catch (Exception ignored) {}
+        try { unregisterReceiver(eventReceiver); } catch (Exception ignored) {}
         if (island != null && wm != null) try { wm.removeView(island); } catch (Exception ignored) {}
         super.onDestroy();
     }
