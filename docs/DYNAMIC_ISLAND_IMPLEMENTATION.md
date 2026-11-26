@@ -19,7 +19,7 @@ This feature is for the NixhOS custom Android ROM, not a launcher, overlay app, 
 - The official `lineage-24.0` device tree product is `lineage_fogos` / `PRODUCT_DEVICE := fogos`. It inherits `device/motorola/sm6375-common/BoardConfigCommon.mk`.
 - Its `lineage.dependencies` declares `android_device_motorola_sm6375-common` and `android_hardware_samsung_slsi_nfc`.
 - The device tree `device.mk` includes per-model overlays `FrameworksResDeviceXT2363-8`, `FrameworksResDeviceXT2363-9`, `WifiResDeviceXT2363-8`, and `WifiResDeviceXT2363-9`.
-- **Important identity check:** the same branch's `lineage_fogos.mk` currently sets `PRODUCT_MODEL := moto g34 5G`, even though the LineageOS wiki variant page identifies XT2363-8/9 as moto g45 5G. The codename is shared across closely related models, so this product-name mismatch must be resolved against the exact stock build fingerprint and maintainer/device-tree notes before building or flashing. Do not assume a codename alone guarantees compatibility.
+- **Identity check resolved at the device-tree property level:** although `lineage_fogos.mk` sets a generic `PRODUCT_MODEL := moto g34 5G`, `product.prop` imports a SKU-specific property file based on `ro.boot.hardware.sku`. Both `props/hardware.sku.XT2363-8.prop` and `props/hardware.sku.XT2363-9.prop` explicitly set the displayed/product model properties to `moto g45 5G`. The device tree also includes dedicated framework and Wi-Fi overlays for both XT2363 variants. This explains the apparent model-string mismatch; it is not by itself evidence of a G34 build target. Still verify the actual phone SKU and stock fingerprint before any build/flash, and do not rely on the codename alone.
 - The board config references proprietary vendor config at `vendor/motorola/fogos/BoardConfigVendor.mk`; matching proprietary blobs, kernel, common tree and firmware must be obtained and verified before a build. Kernel/common/vendor revisions are not yet pinned as a tested compatible set.
 - The existing NixhOS GitHub Actions workflow runs `gradle assembleDebug` and produces an APK. It is not an Android ROM/SystemUI build and is not evidence of a working ROM build.
 
@@ -70,6 +70,7 @@ A full Android ROM build is much larger than an ordinary Android app build. A ph
 - Exact user-reported model XT2363-8 is listed by the official LineageOS wiki for moto g45 5G.
 - Official LineageOS 24.0 fogos device tree and its declared common/NFC dependencies identified.
 - Potential SystemUI lifecycle/media integration points located; no patch has been applied to frameworks/base.
+- XT2363-8 and XT2363-9 SKU property files inspected: both explicitly identify the device as moto g45 5G.
 - Product model string mismatch in the device tree is flagged for maintainer/fingerprint verification.
 - Matching proprietary vendor blobs, kernel/common revisions and stock firmware baseline still need verification.
 - No SystemUI source patch or ROM build has been completed yet.
