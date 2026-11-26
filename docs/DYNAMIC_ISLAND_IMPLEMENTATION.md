@@ -79,3 +79,25 @@ A full Android ROM build is much larger than an ordinary Android app build. A ph
 - No SystemUI source patch or ROM build has been completed yet.
 - No installable NixhOS ROM image exists yet.
 - No changes should be flashed to the phone at this stage.
+
+## Follow-up source inspection: per-display status-bar integration (2026-11-26)
+
+The previous integration sketch needs one refinement: a global CoreStartable alone is not a safe place to attach the island view.
+
+Verified in the LineageOS 24.0 source:
+- `StatusBarWindowControllerStore` creates a distinct `StatusBarWindowController` for each display.
+- `StatusBarWindowController` exposes `backgroundView` and `addViewToWindow(view, layoutParams)`.
+- `StatusBarInitializerImpl` creates the status-bar root and `HomeStatusBarComponent` for a display, then notifies registered `StatusBarViewLifecycleListener` instances when the status-bar view is initialized and destroyed.
+- `StatusBarWindowView` is a `FrameLayout` with clipping disabled and applies display-cutout/waterfall insets to its children.
+- `super_status_bar.xml` contains the status-bar launch-animation container and status-bar container; this is not a generic full-screen overlay surface.
+- `ReferenceSysUIComponent` is under `packages/SystemUI/application/src/com/android/systemui/dagger` in this branch. The generic `SysUIComponent` base is also a module list, so the feature module must be included in the actual component used by the target build.
+- The upstream CoreStartable guide says feature-specific Dagger modules should be created; the legacy `SystemUICoreStartableModule` is explicitly deprecated.
+
+### Updated implementation direction
+1. Implement a dedicated island controller/view and state model in SystemUI.
+2. Attach/detach the view with the status-bar view lifecycle (per display), rather than assuming a global startable can own a single status-bar view.
+3. Use the status-bar window controller's supported view attachment API and correct window/layout geometry; do not add a separate overlay window.
+4. Register the feature's CoreStartable/module only for global event/state initialization if needed, and include the feature module in the correct SystemUI Dagger component.
+5. Add tests for display creation/removal, status-bar recreation, cutouts, rotation, lockscreen privacy and touch/accessibility before building.
+
+These source inspections are architecture research, not an implementation patch. The NixhOS repository currently contains planning documentation only; it does not contain a checked-out `frameworks/base` source tree or a ROM manifest. No SystemUI code has been integrated or compiled.
