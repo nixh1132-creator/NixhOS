@@ -174,7 +174,7 @@ public class MainActivity extends Activity {
         Intent query=new Intent(Intent.ACTION_MAIN,null); query.addCategory(Intent.CATEGORY_LAUNCHER);
         for(android.content.pm.ResolveInfo ri:getPackageManager().queryIntentActivities(query,0)){
             String name=ri.loadLabel(getPackageManager()).toString();
-            if(!name.equals(getString(getApplicationInfo().labelRes))) { names.add(name); intents.add(new Intent(Intent.ACTION_MAIN).setClassName(ri.activityInfo.packageName,ri.activityInfo.name).addCategory(Intent.CATEGORY_LAUNCHER)); }
+            if(!ri.activityInfo.packageName.equals(getPackageName())) { names.add(name); intents.add(new Intent(Intent.ACTION_MAIN).setClassName(ri.activityInfo.packageName,ri.activityInfo.name).addCategory(Intent.CATEGORY_LAUNCHER)); }
         }
         Collections.sort(names,String.CASE_INSENSITIVE_ORDER);
         new AlertDialog.Builder(this).setTitle("All apps").setItems(names.toArray(new String[0]),(d,w)->{String selected=names.get(w); for(android.content.pm.ResolveInfo ri:getPackageManager().queryIntentActivities(query,0))if(ri.loadLabel(getPackageManager()).toString().equals(selected)){startActivity(new Intent(Intent.ACTION_MAIN).setClassName(ri.activityInfo.packageName,ri.activityInfo.name).addCategory(Intent.CATEGORY_LAUNCHER));break;}}).setNegativeButton("Close",null).show();
