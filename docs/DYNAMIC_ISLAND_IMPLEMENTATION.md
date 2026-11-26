@@ -11,20 +11,23 @@ This feature is for the NixhOS custom Android ROM, not a launcher, overlay app, 
 - Candidate Android base: official LineageOS 24.0, source branch `lineage-24.0`.
 
 ## Compatibility and source research (checked 2026-11-26)
-- The official LineageOS install guide lists XT2363-8 and XT2363-9 as supported exact model numbers.
+- The official LineageOS device page lists XT2363-8 and XT2363-9 for moto g45 5G.
 - The guide requires Android 14/15 stock firmware before installing the current LineageOS build.
 - The guide requires a computer with ADB and Fastboot. Bootloader unlocking erases user data.
 - The guide requires device-specific `dtbo` and `vendor_boot` images before installing Lineage Recovery.
 - The official device repository exists at `LineageOS/android_device_motorola_fogos`; its default branch is `lineage-24.0`.
 - The official `lineage-24.0` device tree product is `lineage_fogos` / `PRODUCT_DEVICE := fogos`. It inherits `device/motorola/sm6375-common/BoardConfigCommon.mk`.
 - Its `lineage.dependencies` declares `android_device_motorola_sm6375-common` and `android_hardware_samsung_slsi_nfc`.
-- The board config references a proprietary vendor config at `vendor/motorola/fogos/BoardConfigVendor.mk`; therefore matching proprietary blobs and firmware must be obtained and verified before a build. Kernel/common/vendor revisions are not yet pinned as a tested compatible set.
+- The device tree `device.mk` includes per-model overlays `FrameworksResDeviceXT2363-8`, `FrameworksResDeviceXT2363-9`, `WifiResDeviceXT2363-8`, and `WifiResDeviceXT2363-9`.
+- **Important identity check:** the same branch's `lineage_fogos.mk` currently sets `PRODUCT_MODEL := moto g34 5G`, even though the LineageOS wiki variant page identifies XT2363-8/9 as moto g45 5G. The codename is shared across closely related models, so this product-name mismatch must be resolved against the exact stock build fingerprint and maintainer/device-tree notes before building or flashing. Do not assume a codename alone guarantees compatibility.
+- The board config references proprietary vendor config at `vendor/motorola/fogos/BoardConfigVendor.mk`; matching proprietary blobs, kernel, common tree and firmware must be obtained and verified before a build. Kernel/common/vendor revisions are not yet pinned as a tested compatible set.
 - The existing NixhOS GitHub Actions workflow runs `gradle assembleDebug` and produces an APK. It is not an Android ROM/SystemUI build and is not evidence of a working ROM build.
 
 Reference links:
 - Official install guide: https://wiki.lineageos.org/devices/fogos/install/
 - Official device page: https://wiki.lineageos.org/devices/fogos/
 - Official fogos tree (lineage-24.0): https://github.com/LineageOS/android_device_motorola_fogos/tree/lineage-24.0
+- Official SystemUI source (lineage-24.0): https://github.com/LineageOS/android_frameworks_base/tree/lineage-24.0/packages/SystemUI
 - SM6375 common tree: https://github.com/Motorola-SM6375-Devs/android_device_motorola_sm6375-common
 - Kernel source: https://github.com/Motorola-SM6375-Devs/android_kernel_motorola_sm6375
 
@@ -46,16 +49,14 @@ The pill is rendered by SystemUI so it is present above ordinary apps and is not
 - Respect accessibility services, font scaling, display cut-outs, landscape, multi-window, and gesture/navigation modes.
 - Avoid collecting, uploading, or storing personal notification content.
 
-## Implementation approach
-- Add a dedicated SystemUI component/controller in the matching LineageOS 24.0 `frameworks/base/packages/SystemUI` source tree.
-- Subscribe to platform-owned sources (MediaSessionManager, notification/call state, battery broadcasts and notification progress) using APIs and permissions available to SystemUI on this Android branch.
-- Keep event parsing/state management separate from the pill view and animation layer.
-- Use platform resources/overlays for dimensions, colours, and animation timing. No third-party SDK or network service.
-- Add unit tests for event priority/state transitions and build-time checks for the target branch.
-- Do not implement this as an AccessibilityService, notification-listener app, floating-window app, or launcher widget.
+## SystemUI integration research
+- The LineageOS 24.0 frameworks/base branch contains the SystemUI module under `packages/SystemUI`.
+- Search results identify the status-bar lifecycle/hosting path around `CentralSurfacesImpl`, the per-display status bar window controller under `statusbar/window`, and existing media state in `NotificationMediaManager` / media pipeline.
+- These are candidate integration points, not a finished patch. A proper implementation must inspect the exact branch source and its Dagger/lifecycle wiring before modifying it.
+- The feature should be a SystemUI-owned controller/view, integrated through the existing status-bar lifecycle and media/notification state. It must not be a third-party overlay app, AccessibilityService, notification-listener app, or launcher widget.
 
 ## Required verification before flashing
-1. Confirm exact XT2363-8 identity and pin matching fogos device tree, common tree, kernel, vendor blobs and firmware revisions.
+1. Resolve the XT2363-8 product identity/fingerprint mismatch and pin matching fogos device tree, common tree, kernel, vendor blobs and firmware revisions.
 2. Build the unmodified official LineageOS 24.0 fogos target first, then integrate the SystemUI feature and build again.
 3. Run compile checks and inspect boot/SystemUI logs; test media, calls, timer, charging, downloads, privacy, rotation, and accessibility.
 4. Make a complete user-data backup and verify a recovery/restore path.
@@ -66,8 +67,10 @@ A full Android ROM build is much larger than an ordinary Android app build. A ph
 
 ## Current status
 - Planning and compatibility research updated.
-- Exact user-reported model XT2363-8 is included in the official LineageOS supported model list.
+- Exact user-reported model XT2363-8 is listed by the official LineageOS wiki for moto g45 5G.
 - Official LineageOS 24.0 fogos device tree and its declared common/NFC dependencies identified.
+- Potential SystemUI lifecycle/media integration points located; no patch has been applied to frameworks/base.
+- Product model string mismatch in the device tree is flagged for maintainer/fingerprint verification.
 - Matching proprietary vendor blobs, kernel/common revisions and stock firmware baseline still need verification.
 - No SystemUI source patch or ROM build has been completed yet.
 - No installable NixhOS ROM image exists yet.
