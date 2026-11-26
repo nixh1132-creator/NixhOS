@@ -94,6 +94,15 @@ public class MainActivity extends Activity {
         island.addView(islandText,new LinearLayout.LayoutParams(0,dp(24),1));
         island.addView(label("•••",16,muted,true));
         content.addView(island,new LinearLayout.LayoutParams(-1,-2));
+        island.setOnClickListener(v -> {
+            if (android.provider.Settings.canDrawOverlays(this)) {
+                startService(new Intent(this, DynamicIslandService.class));
+                Toast.makeText(this, "Nixh Dynamic Island started", Toast.LENGTH_SHORT).show();
+            } else {
+                startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:" + getPackageName())));
+            }
+        });
         gap(content,28);
 
         LinearLayout heading=row();
